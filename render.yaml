@@ -1,16 +1,12 @@
 services:
   - type: web
-    name: lark-mcp-telegram-server
+    name: lark-mcp-telegram-server-v2
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     plan: starter
     envVars:
-      - key: LARK_APP_ID
-        sync: false
-      - key: LARK_APP_SECRET
-        sync: false
-      - key: TELEGRAM_TOKEN
-        sync: false
       - key: PORT
         value: 10000
+      - key: RENDER
+        value: production
