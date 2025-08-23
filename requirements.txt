@@ -1,0 +1,6 @@
+fastmcp
+lark-oapi
+python-telegram-bot
+python-dotenv
+fastapi
+uvicorn
