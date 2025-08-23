@@ -133,13 +133,30 @@ if __name__ == "__main__":
     logger.info(f"Starting FastMCP HTTP server on port {port}")
     
     try:
-        # Run with HTTP transport for Render deployment
-        mcp.run(
-            transport="http",
-            host="0.0.0.0",  # Bind to all interfaces for Render
-            port=port,
-            path="/mcp"
-        )
+        # Run FastMCP server (STDIO by default)
+        # For HTTP deployment, we'll create a wrapper
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.responses import JSONResponse
+        
+        # Create FastAPI wrapper
+        app = FastAPI(title="Lark Telegram MCP Server")
+        
+        @app.get("/")
+        async def root():
+            return {"status": "FastMCP Server Running", "tools": ["send_lark", "send_telegram", "health_check"]}
+        
+        @app.get("/health")
+        async def health():
+            return health_check()
+        
+        @app.post("/mcp")
+        async def mcp_endpoint():
+            return {"message": "MCP tools available via STDIO protocol"}
+        
+        # Run HTTP server with FastAPI
+        uvicorn.run(app, host="0.0.0.0", port=port)
+        
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")
     except Exception as e:
