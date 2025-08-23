@@ -16,6 +16,9 @@ from pydantic import BaseModel
 import uvicorn
 import httpx
 from dotenv import load_dotenv
+import uuid
+import asyncio
+from datetime import timedelta
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +35,8 @@ logger = logging.getLogger(__name__)
 LARK_APP_ID = os.getenv("LARK_APP_ID")
 LARK_APP_SECRET = os.getenv("LARK_APP_SECRET") 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 PORT = int(os.getenv("PORT", "8000"))
 
 # Validate required environment variables
@@ -82,6 +87,119 @@ class MessageResponse(BaseModel):
     api_response: Optional[dict] = None
 
 # Lark API client
+class SupabaseClient:
+    """Supabase client for HypeTask session management"""
+    def __init__(self):
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            logger.warning("⚠️ Supabase credentials missing - session features disabled")
+            self.enabled = False
+            return
+        self.enabled = True
+        self.base_url = SUPABASE_URL
+        self.api_key = SUPABASE_KEY
+        
+    async def create_session(self, user_id: str, platform: str, user_context: dict = None) -> dict:
+        """Create new user session"""
+        if not self.enabled:
+            return {"success": False, "error": "Supabase not configured"}
+            
+        session_token = str(uuid.uuid4())
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    f"{self.base_url}/rest/v1/hypetask_user_sessions",
+                    headers={
+                        "apikey": self.api_key,
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                        "Prefer": "return=representation"
+                    },
+                    json={
+                        "user_id": user_id,
+                        "session_token": session_token,
+                        "platform": platform,
+                        "user_context": user_context or {},
+                        "preferences": {}
+                    }
+                )
+                
+                if response.status_code == 201:
+                    session_data = response.json()[0]
+                    return {"success": True, "session": session_data}
+                else:
+                    logger.error(f"Failed to create session: {response.text}")
+                    return {"success": False, "error": response.text}
+                    
+            except Exception as e:
+                logger.error(f"Session creation error: {e}")
+                return {"success": False, "error": str(e)}
+    
+    async def get_session(self, session_token: str) -> dict:
+        """Get session by token"""
+        if not self.enabled:
+            return {"success": False, "error": "Supabase not configured"}
+            
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    f"{self.base_url}/rest/v1/hypetask_user_sessions",
+                    headers={
+                        "apikey": self.api_key,
+                        "Authorization": f"Bearer {self.api_key}"
+                    },
+                    params={
+                        "session_token": f"eq.{session_token}",
+                        "is_active": "eq.true",
+                        "expires_at": f"gte.{datetime.utcnow().isoformat()}"
+                    }
+                )
+                
+                if response.status_code == 200:
+                    sessions = response.json()
+                    if sessions:
+                        return {"success": True, "session": sessions[0]}
+                    else:
+                        return {"success": False, "error": "Session not found or expired"}
+                else:
+                    return {"success": False, "error": response.text}
+                    
+            except Exception as e:
+                logger.error(f"Session retrieval error: {e}")
+                return {"success": False, "error": str(e)}
+    
+    async def log_conversation(self, session_id: str, user_id: str, platform: str, 
+                              message_type: str, content: str, action_data: dict = None):
+        """Log conversation message"""
+        if not self.enabled:
+            return {"success": False, "error": "Supabase not configured"}
+            
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    f"{self.base_url}/rest/v1/hypetask_conversations",
+                    headers={
+                        "apikey": self.api_key,
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "platform": platform,
+                        "message_type": message_type,
+                        "content": content,
+                        "action_data": action_data or {}
+                    }
+                )
+                
+                return {"success": response.status_code == 201}
+                
+            except Exception as e:
+                logger.error(f"Conversation logging error: {e}")
+                return {"success": False, "error": str(e)}
+
+
 class LarkClient:
     def __init__(self, app_id: str, app_secret: str):
         self.app_id = app_id
@@ -365,6 +483,7 @@ class TelegramClient:
 # Initialize API clients
 lark_client = LarkClient(LARK_APP_ID, LARK_APP_SECRET) if LARK_APP_ID and LARK_APP_SECRET else None
 telegram_client = TelegramClient(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
+supabase_client = SupabaseClient()
 
 # Create FastAPI application
 app = FastAPI(
@@ -439,6 +558,203 @@ async def health_check():
             "lark_configured": lark_client is not None,
             "telegram_configured": telegram_client is not None
         }
+    }
+
+# =============================================================================
+# MCP STANDARD ENDPOINTS
+# =============================================================================
+
+@app.get("/mcp/tools")
+async def mcp_tools_list():
+    """MCP standard: List all available tools"""
+    tools = [
+        {
+            "name": "send_lark_message",
+            "description": "Send message to Lark chat or user",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "chat_id": {"type": "string", "description": "Lark chat ID (ou_xxxxx or oc_xxxxx)"},
+                    "text": {"type": "string", "description": "Message text to send"}
+                },
+                "required": ["chat_id", "text"]
+            }
+        },
+        {
+            "name": "create_bitable_app", 
+            "description": "Create new Bitable (spreadsheet) application",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name for the Bitable app"},
+                    "folder_token": {"type": "string", "description": "Optional folder token"}
+                },
+                "required": ["name"]
+            }
+        },
+        {
+            "name": "list_bitable_tables",
+            "description": "List all tables in a Bitable app", 
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "app_token": {"type": "string", "description": "Bitable app token"}
+                },
+                "required": ["app_token"]
+            }
+        },
+        {
+            "name": "list_departments",
+            "description": "List all departments in the organization",
+            "inputSchema": {"type": "object", "properties": {}}
+        },
+        {
+            "name": "list_chats",
+            "description": "List all Lark chats the user/bot is in",
+            "inputSchema": {"type": "object", "properties": {}}
+        },
+        {
+            "name": "create_hypetask_session",
+            "description": "Create new HypeTask user session for state management",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "string", "description": "User identifier"},
+                    "platform": {"type": "string", "description": "Platform (lark/telegram/replit)"},
+                    "user_context": {"type": "object", "description": "Optional user context data"}
+                },
+                "required": ["user_id", "platform"]
+            }
+        },
+        {
+            "name": "get_hypetask_session",
+            "description": "Get HypeTask session by token",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_token": {"type": "string", "description": "Session token"}
+                },
+                "required": ["session_token"]
+            }
+        },
+        {
+            "name": "log_conversation",
+            "description": "Log conversation message to HypeTask history",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_token": {"type": "string", "description": "Session token"},
+                    "message_type": {"type": "string", "description": "Message type (user_input/ai_response/system_action)"},
+                    "content": {"type": "string", "description": "Message content"},
+                    "action_data": {"type": "object", "description": "Optional action metadata"}
+                },
+                "required": ["session_token", "message_type", "content"]
+            }
+        },
+        {
+            "name": "get_conversation_history",
+            "description": "Get conversation history for HypeTask session",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_token": {"type": "string", "description": "Session token"},
+                    "limit": {"type": "integer", "description": "Message limit (default: 50)"}
+                },
+                "required": ["session_token"]
+            }
+        }
+    ]
+    
+    return {
+        "tools": tools,
+        "count": len(tools),
+        "server_info": {
+            "name": "lark-productivity-mcp",
+            "version": "2.1.0",
+            "description": "Lark Productivity Tools MCP Server"
+        }
+    }
+
+@app.get("/mcp/resources") 
+async def mcp_resources_list():
+    """MCP standard: List all available resources"""
+    resources = [
+        {
+            "uri": "lark://contacts/departments",
+            "name": "Organization Departments",
+            "description": "Live list of all departments in the organization",
+            "mimeType": "application/json"
+        },
+        {
+            "uri": "lark://chats/list", 
+            "name": "Chat List",
+            "description": "Live list of all accessible chats",
+            "mimeType": "application/json"
+        },
+        {
+            "uri": "lark://bitable/apps",
+            "name": "Bitable Applications", 
+            "description": "List of all Bitable apps accessible to user",
+            "mimeType": "application/json"
+        }
+    ]
+    
+    return {
+        "resources": resources,
+        "count": len(resources)
+    }
+
+@app.get("/mcp/prompts")
+async def mcp_prompts_list():
+    """MCP standard: List all available prompts"""
+    prompts = [
+        {
+            "name": "daily_standup",
+            "description": "Send daily standup message to team chat",
+            "arguments": [
+                {
+                    "name": "team_chat_id", 
+                    "description": "Team chat ID (ou_xxxxx)",
+                    "required": True
+                },
+                {
+                    "name": "tasks_completed",
+                    "description": "Tasks completed yesterday",
+                    "required": True
+                },
+                {
+                    "name": "tasks_today", 
+                    "description": "Tasks planned for today",
+                    "required": True
+                }
+            ]
+        },
+        {
+            "name": "project_status_report",
+            "description": "Create and send project status report to stakeholders", 
+            "arguments": [
+                {
+                    "name": "project_name",
+                    "description": "Name of the project",
+                    "required": True
+                },
+                {
+                    "name": "status",
+                    "description": "Current status (on track, delayed, blocked)",
+                    "required": True
+                },
+                {
+                    "name": "chat_ids",
+                    "description": "List of chat IDs to send report to",
+                    "required": True
+                }
+            ]
+        }
+    ]
+    
+    return {
+        "prompts": prompts,
+        "count": len(prompts)
     }
 
 @app.get("/ready") 
@@ -870,6 +1186,158 @@ async def send_telegram_endpoint(request: MessageRequest):
     except Exception as e:
         logger.error(f"Telegram API exception: {e}")
         raise HTTPException(status_code=500, detail=f"Telegram API error: {str(e)}")
+
+# ========================== HYPETASK SESSION MANAGEMENT ==========================
+
+class SessionRequest(BaseModel):
+    user_id: str
+    platform: str
+    user_context: Optional[dict] = None
+
+class ConversationLogRequest(BaseModel):
+    session_token: str
+    message_type: str  # user_input, ai_response, system_action
+    content: str
+    action_data: Optional[dict] = None
+
+@app.post("/api/v1/hypetask/session/create")
+async def create_session(request: SessionRequest):
+    """Create new HypeTask user session"""
+    try:
+        result = await supabase_client.create_session(
+            user_id=request.user_id,
+            platform=request.platform,
+            user_context=request.user_context
+        )
+        
+        if result["success"]:
+            return MessageResponse(
+                success=True,
+                message="Session created successfully",
+                details=f"Session for user {request.user_id} on {request.platform}",
+                api_response=result["session"]
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to create session",
+                details=result.get("error", "Unknown error"),
+                api_response=result
+            )
+            
+    except Exception as e:
+        logger.error(f"Session creation exception: {e}")
+        raise HTTPException(status_code=500, detail=f"Session creation error: {str(e)}")
+
+@app.get("/api/v1/hypetask/session/{session_token}")
+async def get_session(session_token: str):
+    """Get session by token"""
+    try:
+        result = await supabase_client.get_session(session_token)
+        
+        if result["success"]:
+            return MessageResponse(
+                success=True,
+                message="Session retrieved successfully",
+                details=f"Session token: {session_token}",
+                api_response=result["session"]
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Session not found",
+                details=result.get("error", "Session expired or not found"),
+                api_response=result
+            )
+            
+    except Exception as e:
+        logger.error(f"Session retrieval exception: {e}")
+        raise HTTPException(status_code=500, detail=f"Session retrieval error: {str(e)}")
+
+@app.post("/api/v1/hypetask/conversation/log")
+async def log_conversation(request: ConversationLogRequest):
+    """Log conversation message to history"""
+    try:
+        # Get session first
+        session_result = await supabase_client.get_session(request.session_token)
+        if not session_result["success"]:
+            return MessageResponse(
+                success=False,
+                message="Invalid session token",
+                details="Session not found or expired"
+            )
+        
+        session = session_result["session"]
+        
+        # Log conversation
+        result = await supabase_client.log_conversation(
+            session_id=session["id"],
+            user_id=session["user_id"],
+            platform=session["platform"],
+            message_type=request.message_type,
+            content=request.content,
+            action_data=request.action_data
+        )
+        
+        return MessageResponse(
+            success=result["success"],
+            message="Conversation logged successfully" if result["success"] else "Failed to log conversation",
+            details=f"Message type: {request.message_type}",
+            api_response=result
+        )
+        
+    except Exception as e:
+        logger.error(f"Conversation logging exception: {e}")
+        raise HTTPException(status_code=500, detail=f"Conversation logging error: {str(e)}")
+
+@app.get("/api/v1/hypetask/conversation/history/{session_token}")
+async def get_conversation_history(session_token: str, limit: int = 50):
+    """Get conversation history for session"""
+    try:
+        # Get session first
+        session_result = await supabase_client.get_session(session_token)
+        if not session_result["success"]:
+            return MessageResponse(
+                success=False,
+                message="Invalid session token",
+                details="Session not found or expired"
+            )
+        
+        session = session_result["session"]
+        
+        # Get conversation history via direct API call
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{supabase_client.base_url}/rest/v1/hypetask_conversations",
+                headers={
+                    "apikey": supabase_client.api_key,
+                    "Authorization": f"Bearer {supabase_client.api_key}"
+                },
+                params={
+                    "session_id": f"eq.{session['id']}",
+                    "order": "created_at.desc",
+                    "limit": limit
+                }
+            )
+            
+            if response.status_code == 200:
+                conversations = response.json()
+                return MessageResponse(
+                    success=True,
+                    message=f"Retrieved {len(conversations)} conversation messages",
+                    details=f"Session: {session_token}",
+                    api_response={"conversations": conversations, "session": session}
+                )
+            else:
+                return MessageResponse(
+                    success=False,
+                    message="Failed to retrieve conversation history",
+                    details=response.text
+                )
+        
+    except Exception as e:
+        logger.error(f"Conversation history exception: {e}")
+        raise HTTPException(status_code=500, detail=f"Conversation history error: {str(e)}")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
