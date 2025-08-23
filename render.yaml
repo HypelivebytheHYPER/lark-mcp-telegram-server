@@ -2,8 +2,8 @@ services:
   - type: web
     name: lark-mcp-telegram-server
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    buildCommand: pip install -r requirements-simple.txt
+    startCommand: python app_simple.py
     plan: starter
     envVars:
       - key: LARK_APP_ID
