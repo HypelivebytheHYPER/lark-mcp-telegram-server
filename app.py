@@ -1312,11 +1312,12 @@ async def update_bitable_table(app_token: str, table_id: str, request: BitableTa
     if not lark_client:
         raise HTTPException(status_code=503, detail="Lark not configured")
     
+    if not request.name:
+        raise HTTPException(status_code=422, detail="Missing 'name' field in request body")
     try:
         status_code, api_response = await lark_client.update_bitable_table(
             app_token, table_id, request.name
         )
-        
         if status_code == 200 and api_response.get("code") == 0:
             table_data = api_response.get('data', {})
             return MessageResponse(
