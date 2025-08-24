@@ -2,15 +2,15 @@
 
 ## ✅ SUCCESS: MCP Bridge Working with Real Data
 
-**Your Bitable URL**: https://tsg9eq7nxo3w.sg.larksuite.com/base/SEkObxgDpaPZbss1T3RlHzamgac?table=tblGhWiw3dzgdsfw
+**Your Bitable URL**: https://tsg9eq7nxo3w.sg.larksuite.com/base/YOUR_APP_TOKEN?table=YOUR_TABLE_ID
 
 **Production Server**: https://lark-mcp-telegram-server.onrender.com
 
 ## 📊 Test Results
 
 ### ✅ Connection Successful
-- **App Token**: `SEkObxgDpaPZbss1T3RlHzamgac`
-- **Table ID**: `tblGhWiw3dzgdsfw`
+- **App Token**: `YOUR_APP_TOKEN`
+- **Table ID**: `YOUR_TABLE_ID`
 - **Tables Found**: 10 tables in your Bitable app
 - **Records Found**: 15 records in your target table
 
@@ -37,17 +37,12 @@ Format: JSON-RPC 2.0
 
 **List Tables:**
 ```json
-{
-  "jsonrpc": "2.0",
-  "id": "list_tables",
-  "method": "tools/call",
-  "params": {
-    "name": "list_bitable_tables",
-    "arguments": {
-      "app_token": "SEkObxgDpaPZbss1T3RlHzamgac"
+    "params": {
+      "name": "list_bitable_tables",
+      "arguments": {
+        "app_token": "YOUR_APP_TOKEN"
+      }
     }
-  }
-}
 ```
 
 **Search Records:**
@@ -59,8 +54,8 @@ Format: JSON-RPC 2.0
   "params": {
     "name": "bitable.v1.appTableRecord.search",
     "arguments": {
-      "app_token": "SEkObxgDpaPZbss1T3RlHzamgac",
-      "table_id": "tblGhWiw3dzgdsfw"
+      "app_token": "YOUR_APP_TOKEN",
+      "table_id": "YOUR_TABLE_ID"
     }
   }
 }
@@ -68,8 +63,8 @@ Format: JSON-RPC 2.0
 
 ### AI Agent Prompts You Can Use Now
 
-1. **"List all tables in my Bitable app SEkObxgDpaPZbss1T3RlHzamgac"**
-2. **"Search for records in table tblGhWiw3dzgdsfw"**
+1. **"List all tables in my Bitable app YOUR_APP_TOKEN"**
+2. **"Search for records in table YOUR_TABLE_ID"**
 3. **"Show me the structure of my Bitable data"**
 
 ## 🚀 Next Steps

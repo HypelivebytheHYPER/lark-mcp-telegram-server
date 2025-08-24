@@ -2,7 +2,7 @@
 
 **Evaluation Date**: 2025-08-24 18:43:22  
 **Target System**: Lark MCP Telegram Server  
-**Protocol Instructions Table**: https://tsg9eq7nxo3w.sg.larksuite.com/base/SEkObxgDpaPZbss1T3RlHzamgac?table=tbl9JVuqZdnqYV52&view=vew9gTpXic
+**Protocol Instructions Table**: https://tsg9eq7nxo3w.sg.larksuite.com/base/YOUR_APP_TOKEN?table=YOUR_TABLE_ID&view=YOUR_VIEW_ID
 
 ## 🚀 **SYSTEM STATUS: FULLY OPERATIONAL** ✅
 
@@ -42,8 +42,8 @@
 ### **4. Protocol Instructions Table Integration**
 
 **Table Details:**
-- **App Token**: `SEkObxgDpaPZbss1T3RlHzamgac`
-- **Table ID**: `tbl9JVuqZdnqYV52`
+- **App Token**: `YOUR_APP_TOKEN`
+- **Table ID**: `YOUR_TABLE_ID`
 - **Access Method**: MCP Bridge + HTTP REST API
 - **View**: `vew9gTpXic`
 
@@ -62,17 +62,17 @@
 # List all tables in the base
 curl -X POST "https://lark-mcp-telegram-server.onrender.com/mcp/invoke" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"bitable_list_tables","arguments":{"app_token":"SEkObxgDpaPZbss1T3RlHzamgac"}},"id":"list-tables"}'
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"bitable_list_tables","arguments":{"app_token":"YOUR_APP_TOKEN"}},"id":"list-tables"}'
 
 # Get Protocol Instructions table schema
 curl -X POST "https://lark-mcp-telegram-server.onrender.com/mcp/invoke" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"bitable_get_table_schema","arguments":{"app_token":"SEkObxgDpaPZbss1T3RlHzamgac","table_id":"tbl9JVuqZdnqYV52"}},"id":"schema"}'
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"bitable_get_table_schema","arguments":{"app_token":"YOUR_APP_TOKEN","table_id":"YOUR_TABLE_ID"}},"id":"schema"}'
 
 # List records from Protocol Instructions table
 curl -X POST "https://lark-mcp-telegram-server.onrender.com/mcp/invoke" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"bitable_list_records","arguments":{"app_token":"SEkObxgDpaPZbss1T3RlHzamgac","table_id":"tbl9JVuqZdnqYV52"}},"id":"records"}'
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"bitable_list_records","arguments":{"app_token":"YOUR_APP_TOKEN","table_id":"YOUR_TABLE_ID"}},"id":"records"}'
 ```
 
 ### **6. Security Assessment** 🛡️
@@ -109,7 +109,7 @@ curl -X POST "https://lark-mcp-telegram-server.onrender.com/mcp/invoke" \
     ┌──────────────────▼─────────────────────────────────────────┐
     │           LarkSuite API Integration                        │
     │  ┌─────────────────────────────────────────────────────┐  │
-    │  │  Protocol Instructions Table (tbl9JVuqZdnqYV52)    │  │
+    │  │  Protocol Instructions Table (YOUR_TABLE_ID)         │  │
     │  │  ✅ Accessible via MCP Bridge                       │  │
     │  │  ✅ Schema operations working                       │  │
     │  │  ✅ Record operations working                       │  │
@@ -134,7 +134,7 @@ curl -X POST "https://lark-mcp-telegram-server.onrender.com/mcp/invoke" \
 ### **9. 📚 Knowledge Integration: Protocol Instructions System**
 
 **Target Table Analysis:**
-- **Location**: https://tsg9eq7nxo3w.sg.larksuite.com/base/SEkObxgDpaPZbss1T3RlHzamgac?table=tbl9JVuqZdnqYV52&view=vew9gTpXic
+- **Location**: https://tsg9eq7nxo3w.sg.larksuite.com/base/YOUR_APP_TOKEN?table=YOUR_TABLE_ID&view=YOUR_VIEW_ID
 - **Purpose**: System protocol instructions and knowledge base
 - **Integration Status**: ✅ Fully accessible via MCP Bridge
 - **Access Methods**: 
@@ -151,8 +151,8 @@ curl -X POST "https://lark-mcp-telegram-server.onrender.com/mcp/invoke" \
   "params": {
     "name": "bitable_list_records",
     "arguments": {
-      "app_token": "SEkObxgDpaPZbss1T3RlHzamgac",
-      "table_id": "tbl9JVuqZdnqYV52",
+      "app_token": "YOUR_APP_TOKEN",
+      "table_id": "YOUR_TABLE_ID",
       "page_size": 50
     }
   },
