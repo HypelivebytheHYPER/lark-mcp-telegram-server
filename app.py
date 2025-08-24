@@ -578,7 +578,12 @@ async def root():
                 "get_user": "/api/v1/contacts/users/{user_id}",
                 "list_departments": "/api/v1/contacts/departments"
             },
-            "telegram": "/api/v1/telegram/send"
+            "telegram": "/api/v1/telegram/send",
+            "webhooks": {
+                "lark_events": "/webhook/lark/events",
+                "lark_config": "/webhook/lark/config", 
+                "lark_test": "/webhook/lark/test"
+            }
         }
     }
 
@@ -1430,6 +1435,232 @@ async def global_exception_handler(request: Request, exc: Exception):
             "deployment": "production-with-real-apis"
         }
     )
+
+# ============================================
+# 🔔 Webhook Auto-Update Endpoints
+# ============================================
+
+@app.post("/webhook/lark/events")
+@limiter.limit("100/minute")  # Higher limit for webhooks
+async def handle_lark_webhook(
+    request: Request,
+    user_role: Optional[str] = Depends(security_manager.verify_api_key)
+):
+    """Handle incoming Lark webhook events for auto-updates"""
+    try:
+        # Get raw request data
+        body = await request.body()
+        headers = dict(request.headers)
+        
+        # Log the webhook event
+        client_ip = request.client.host if request.client else "unknown"
+        logger.info(f"📥 Received Lark webhook event from {client_ip}")
+        
+        # Parse JSON payload
+        try:
+            event_data = await request.json()
+        except Exception as e:
+            logger.error(f"❌ Failed to parse webhook JSON: {e}")
+            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        
+        # Verify webhook signature (Lark webhook verification)
+        event_type = event_data.get("type")
+        
+        # Handle different event types
+        if event_type == "url_verification":
+            # Initial webhook URL verification
+            challenge = event_data.get("challenge")
+            logger.info(f"✅ Webhook URL verification with challenge: {challenge}")
+            return {"challenge": challenge}
+        
+        elif event_type == "event_callback":
+            # Actual event processing
+            event = event_data.get("event", {})
+            event_name = event.get("type")
+            
+            logger.info(f"🔔 Processing event: {event_name}")
+            
+            # Process different Lark events
+            response_data = await process_lark_event(event_name, event, event_data)
+            
+            # Forward to n8n workflows if needed
+            if response_data.get("forward_to_n8n"):
+                await forward_to_n8n_webhook(event_name, event, response_data)
+            
+            return {
+                "success": True,
+                "message": f"Event {event_name} processed successfully",
+                "event_type": event_name,
+                "processed_at": datetime.now().isoformat(),
+                "forwarded_to_n8n": response_data.get("forward_to_n8n", False)
+            }
+        
+        else:
+            logger.warning(f"⚠️ Unknown event type: {event_type}")
+            return {
+                "success": False,
+                "message": f"Unknown event type: {event_type}"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Webhook processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+
+async def process_lark_event(event_name: str, event: dict, full_data: dict) -> dict:
+    """Process different types of Lark events"""
+    
+    if event_name == "message":
+        # Handle new messages
+        message = event.get("message", {})
+        chat_id = message.get("chat_id")
+        sender = event.get("sender", {})
+        
+        logger.info(f"💬 New message in chat {security_manager.hash_sensitive_data(chat_id or 'unknown')} from user {security_manager.hash_sensitive_data(sender.get('sender_id', {}).get('open_id', 'unknown'))}")
+        
+        return {
+            "event": "message_received",
+            "chat_id": chat_id,
+            "message_id": message.get("message_id"),
+            "forward_to_n8n": True
+        }
+        
+    elif event_name == "app_table_record_changed":
+        # Handle Bitable record changes
+        table_info = event.get("table_info", {})
+        record_info = event.get("record_info", {})
+        
+        logger.info(f"📊 Bitable record changed in app {table_info.get('app_token')} table {table_info.get('table_id')}")
+        
+        return {
+            "event": "bitable_record_changed", 
+            "app_token": table_info.get("app_token"),
+            "table_id": table_info.get("table_id"),
+            "record_id": record_info.get("record_id"),
+            "forward_to_n8n": True
+        }
+        
+    elif event_name == "contact_user_created":
+        # Handle new user added
+        user_info = event.get("object", {})
+        
+        logger.info(f"👤 New user created: {security_manager.hash_sensitive_data(user_info.get('open_id', 'unknown'))}")
+        
+        return {
+            "event": "user_created",
+            "user_id": user_info.get("open_id"),
+            "forward_to_n8n": True
+        }
+        
+    else:
+        logger.info(f"ℹ️ Event {event_name} processed but no specific handler")
+        return {
+            "event": event_name,
+            "forward_to_n8n": False
+        }
+
+async def forward_to_n8n_webhook(event_name: str, event: dict, processed_data: dict):
+    """Forward processed events to n8n webhook URLs"""
+    
+    # Define n8n webhook URLs for different event types
+    n8n_webhooks = {
+        "message_received": "https://modcho.app.n8n.cloud/webhook/lark-message-received",
+        "bitable_record_changed": "https://modcho.app.n8n.cloud/webhook/lark-bitable-changed", 
+        "user_created": "https://modcho.app.n8n.cloud/webhook/lark-user-created"
+    }
+    
+    webhook_url = n8n_webhooks.get(processed_data.get("event"))
+    
+    if webhook_url:
+        try:
+            async with httpx.AsyncClient() as client:
+                payload = {
+                    "event_type": event_name,
+                    "event_data": event,
+                    "processed_data": processed_data,
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "HypeMcp-webhook"
+                }
+                
+                response = await client.post(
+                    webhook_url,
+                    json=payload,
+                    timeout=10.0
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"✅ Forwarded {event_name} to n8n webhook successfully")
+                else:
+                    logger.warning(f"⚠️ n8n webhook returned {response.status_code}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to forward to n8n: {str(e)}")
+    else:
+        logger.debug(f"ℹ️ No n8n webhook configured for event: {processed_data.get('event')}")
+
+@app.get("/webhook/lark/config")
+async def get_webhook_config():
+    """Get current webhook configuration"""
+    return {
+        "success": True,
+        "service": "HypeMcp",
+        "webhook_endpoint": "https://lark-mcp-telegram-server.onrender.com/webhook/lark/events",
+        "supported_events": [
+            "message",
+            "app_table_record_changed", 
+            "contact_user_created"
+        ],
+        "n8n_forwarding": {
+            "message_received": "https://modcho.app.n8n.cloud/webhook/lark-message-received",
+            "bitable_record_changed": "https://modcho.app.n8n.cloud/webhook/lark-bitable-changed",
+            "user_created": "https://modcho.app.n8n.cloud/webhook/lark-user-created"
+        },
+        "setup_instructions": {
+            "step_1": "Go to your Lark app configuration",
+            "step_2": "Add webhook URL: https://lark-mcp-telegram-server.onrender.com/webhook/lark/events",
+            "step_3": "Subscribe to desired events: message, app_table_record_changed, contact_user_created",
+            "step_4": "Configure webhook secret (optional but recommended)",
+            "step_5": "Test with URL verification"
+        },
+        "security": {
+            "rate_limit": "100/minute",
+            "authentication": "optional",
+            "ip_logging": True
+        }
+    }
+
+@app.post("/webhook/lark/test")
+async def test_webhook():
+    """Test webhook endpoint with sample data"""
+    sample_event = {
+        "type": "event_callback",
+        "event": {
+            "type": "message",
+            "message": {
+                "chat_id": "oc_test_chat_id",
+                "message_id": "test_message_id",
+                "content": "Test webhook message"
+            },
+            "sender": {
+                "sender_id": {
+                    "open_id": "test_user_id"
+                }
+            }
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Process the test event
+    processed = await process_lark_event("message", sample_event["event"], sample_event)
+    
+    return {
+        "success": True,
+        "message": "Webhook test completed",
+        "test_event": sample_event,
+        "processed_result": processed,
+        "timestamp": datetime.now().isoformat()
+    }
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
