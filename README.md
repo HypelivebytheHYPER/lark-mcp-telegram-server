@@ -1,6 +1,6 @@
-# FastMCP Lark-Telegram Server
+# HypeMcp Server
 
-A FastMCP server that bridges Lark (Feishu) and Telegram messaging platforms.
+HypeMcp - A powerful MCP server that bridges Lark (Feishu) and Telegram messaging platforms.
 
 ## Features
 

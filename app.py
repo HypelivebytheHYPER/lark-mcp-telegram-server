@@ -493,7 +493,7 @@ supabase_client = SupabaseClient()
 
 # Create FastAPI application with enhanced security
 app = FastAPI(
-    title="Lark-Telegram Bridge Server",
+    title="HypeMcp",
     description="Secure HTTP server for bridging Lark and Telegram messaging with real API integrations",
     version="2.1.0"
 )
@@ -535,7 +535,7 @@ app.add_middleware(
 async def root():
     """Root endpoint with service information and security status"""
     return {
-        "service": "Lark-Telegram Bridge Server",
+        "service": "HypeMcp",
         "version": "2.1.0", 
         "status": "running",
         "deployment": "render-production-with-real-apis",
@@ -1434,7 +1434,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     
-    logger.info(f"🚀 Starting Production Lark-Telegram Bridge Server with Real APIs on port {port}")
+    logger.info(f"🚀 Starting Production HypeMcp Server with Real APIs on port {port}")
     logger.info(f"📊 Environment: {os.getenv('RENDER', 'development')}")
     logger.info(f"🔧 Deployment: FastAPI production server with real API integrations")
     logger.info(f"🔗 Lark integration: {'✓ configured' if lark_client else '❌ missing credentials'}")
