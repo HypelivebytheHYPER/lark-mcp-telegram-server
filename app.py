@@ -653,7 +653,15 @@ logger.info(f"🔧 MCP_BRIDGE_ENABLED: {MCP_BRIDGE_ENABLED}")
 
 if MCP_BRIDGE_ENABLED:
     try:
-        from mcp_bridge import router as mcp_bridge
+        # Try enhanced MCP bridge first (with Bitable support)
+        try:
+            from app.mcp_bridge_enhanced import router as mcp_bridge
+            logger.info("✅ Enhanced MCP Bridge with Bitable support loaded")
+        except ImportError as e:
+            logger.warning(f"Enhanced MCP Bridge unavailable, using basic version: {e}")
+            from app.mcp_bridge import router as mcp_bridge
+            logger.info("✅ Basic MCP Bridge loaded")
+        
         # Include BEFORE existing /mcp routes to take precedence
         app.include_router(mcp_bridge, prefix="/mcp", tags=["mcp-bridge"])
         logger.info(f"✅ MCP Bridge router loaded with {len(mcp_bridge.routes)} routes")
