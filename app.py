@@ -653,12 +653,15 @@ logger.info(f"🔧 MCP_BRIDGE_ENABLED: {MCP_BRIDGE_ENABLED}")
 
 if MCP_BRIDGE_ENABLED:
     try:
-        from mcp_bridge import router as mcp_bridge
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'app'))
+        import mcp_bridge
         # Include BEFORE existing /mcp routes to take precedence
-        app.include_router(mcp_bridge, prefix="/mcp", tags=["mcp-bridge"])
-        logger.info(f"✅ MCP Bridge router loaded with {len(mcp_bridge.routes)} routes")
+        app.include_router(mcp_bridge.router, prefix="/mcp", tags=["mcp-bridge"])
+        logger.info(f"✅ MCP Bridge router loaded with {len(mcp_bridge.router.routes)} routes")
         # Log routes for debugging
-        for route in mcp_bridge.routes:
+        for route in mcp_bridge.router.routes:
             logger.info(f"   📍 {route.methods} /mcp{route.path}")
     except Exception as e:
         logger.error(f"❌ Failed to load MCP Bridge router: {e}")
