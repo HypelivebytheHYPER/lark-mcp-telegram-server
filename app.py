@@ -82,6 +82,17 @@ class BitableRecordRequest(BaseModel):
     table_id: str
     fields: dict
 
+class BitableRecordUpdateRequest(BaseModel):
+    app_token: str
+    table_id: str
+    record_id: str
+    fields: dict
+
+class BitableTableUpdateRequest(BaseModel):
+    app_token: str
+    table_id: str
+    name: Optional[str] = None
+
 class WikiNodeRequest(BaseModel):
     token: str
     obj_type: str = "wiki"
@@ -400,6 +411,66 @@ class LarkClient:
             )
         
         return response.status_code, response.json()
+
+    async def update_bitable_record(self, app_token: str, table_id: str, record_id: str, fields: dict):
+        """Update a record in Bitable table"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.put(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={"fields": fields},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
+
+    async def delete_bitable_record(self, app_token: str, table_id: str, record_id: str):
+        """Delete a record from Bitable table"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
+
+    async def update_bitable_table(self, app_token: str, table_id: str, name: str):
+        """Update a table name in Bitable app"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={"name": name},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
+
+    async def delete_bitable_table(self, app_token: str, table_id: str):
+        """Delete a table from Bitable app"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
     
     async def get_wiki_node(self, token: str, obj_type: str = "wiki"):
         """Get Wiki node information"""
@@ -565,8 +636,12 @@ async def root():
                 "create_app": "/api/v1/bitable/apps/create",
                 "list_tables": "/api/v1/bitable/apps/{app_token}/tables",
                 "create_table": "/api/v1/bitable/apps/{app_token}/tables/create",
+                "update_table": "/api/v1/bitable/apps/{app_token}/tables/{table_id}",
+                "delete_table": "/api/v1/bitable/apps/{app_token}/tables/{table_id}",
                 "query_records": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records",
-                "create_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/create"
+                "create_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/create",
+                "update_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}",
+                "delete_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}"
             },
             "wiki": {
                 "get_node": "/api/v1/wiki/nodes/{token}"
@@ -1099,6 +1174,120 @@ async def create_bitable_record(app_token: str, table_id: str, request: BitableR
             return MessageResponse(
                 success=False,
                 message="Failed to create Bitable record",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.put("/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}")
+async def update_bitable_record(app_token: str, table_id: str, record_id: str, request: BitableRecordUpdateRequest):
+    """Update a record in Bitable table"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.update_bitable_record(
+            app_token, table_id, record_id, request.fields
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            record_data = api_response.get('data', {})
+            return MessageResponse(
+                success=True,
+                message="Record updated successfully in Bitable table",
+                details=f"Record ID: {record_id}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to update Bitable record",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.delete("/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}")
+async def delete_bitable_record(app_token: str, table_id: str, record_id: str):
+    """Delete a record from Bitable table"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.delete_bitable_record(
+            app_token, table_id, record_id
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            return MessageResponse(
+                success=True,
+                message="Record deleted successfully from Bitable table",
+                details=f"Record ID: {record_id}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to delete Bitable record",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.patch("/api/v1/bitable/apps/{app_token}/tables/{table_id}")
+async def update_bitable_table(app_token: str, table_id: str, request: BitableTableUpdateRequest):
+    """Update a table name in Bitable app"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.update_bitable_table(
+            app_token, table_id, request.name
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            table_data = api_response.get('data', {})
+            return MessageResponse(
+                success=True,
+                message="Table updated successfully in Bitable app",
+                details=f"Table ID: {table_id}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to update Bitable table",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.delete("/api/v1/bitable/apps/{app_token}/tables/{table_id}")
+async def delete_bitable_table(app_token: str, table_id: str):
+    """Delete a table from Bitable app"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.delete_bitable_table(
+            app_token, table_id
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            return MessageResponse(
+                success=True,
+                message="Table deleted successfully from Bitable app",
+                details=f"Table ID: {table_id}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to delete Bitable table",
                 details=f"API error: {api_response}",
                 api_response=api_response
             )
