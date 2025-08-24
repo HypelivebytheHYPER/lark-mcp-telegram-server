@@ -1,0 +1,63 @@
+digraph MCP_Bridge {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fontname="Arial", fontsize=12];
+    edge [fontname="Arial", fontsize=10, arrowhead=vee];
+    
+    subgraph cluster_ai_agents {
+        label="AI Agents";
+        style=filled;
+        color=lightblue;
+        
+        n8n [label="n8n AI Agent", fillcolor=lightyellow];
+        langchain [label="LangChain", fillcolor=lightyellow];
+        openai [label="OpenAI Function Calling", fillcolor=lightyellow];
+        claude [label="Anthropic Claude", fillcolor=lightyellow];
+        autogen [label="Microsoft AutoGen", fillcolor=lightyellow];
+        llamaindex [label="LlamaIndex", fillcolor=lightyellow];
+    }
+    
+    subgraph cluster_mcp_bridge {
+        label="MCP Bridge";
+        style=filled;
+        color=lightgreen;
+        
+        mcp_endpoint [label="/mcp/invoke\nJSON-RPC 2.0", fillcolor=white];
+        
+        subgraph cluster_methods {
+            label="MCP Methods";
+            style=filled;
+            color=lightcyan;
+            
+            tools_list [label="tools/list", fillcolor=white];
+            tools_call [label="tools/call", fillcolor=white];
+        }
+    }
+    
+    subgraph cluster_lark {
+        label="Lark Features";
+        style=filled;
+        color=lightpink;
+        
+        messaging [label="Messaging", fillcolor=white];
+        bitable [label="Bitable", fillcolor=white];
+        contacts [label="Contacts", fillcolor=white];
+        hypetask [label="HypeTask", fillcolor=white];
+    }
+    
+    n8n -> mcp_endpoint;
+    langchain -> mcp_endpoint;
+    openai -> mcp_endpoint;
+    claude -> mcp_endpoint;
+    autogen -> mcp_endpoint;
+    llamaindex -> mcp_endpoint;
+    
+    mcp_endpoint -> tools_list;
+    mcp_endpoint -> tools_call;
+    
+    tools_call -> messaging [label="send_lark_message"];
+    tools_call -> bitable [label="create_bitable_app\nlist_bitable_tables"];
+    tools_call -> contacts [label="list_departments"];
+    tools_call -> hypetask [label="create_hypetask_session\nget_hypetask_session\nlog_conversation\nget_conversation_history"];
+    
+    tools_list -> tools_call [label="discovers", style=dashed];
+}

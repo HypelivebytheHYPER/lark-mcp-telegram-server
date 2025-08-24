@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 import httpx
+import json
 import os
 
 router = APIRouter()
 
 # Use internal base for proxying requests
 INTERNAL_BASE = os.getenv("MCP_BRIDGE_INTERNAL_BASE", "https://lark-mcp-telegram-server.onrender.com")
+
+# MCP_PROXY_ENABLED allows for optional proxying to a native Lark-tenant MCP server
+MCP_PROXY_ENABLED = os.getenv("MCP_PROXY_ENABLED", "false").lower() == "true"
+MCP_PROXY_URL = os.getenv("MCP_PROXY_URL", "")
 
 # MCP tool name -> (HTTP method, REST path)
 TOOL_MAP = {
@@ -28,6 +33,16 @@ TOOL_MAP = {
     "log_conversation": ("POST", "/api/v1/hypetask/conversation/log"),
     "get_conversation_history": ("GET", "/api/v1/hypetask/conversation/history/{session_token}"),
     
+    # New user-friendly Bitable CRUD operations
+    "search_bitable_records": ("GET", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records"),
+    "create_bitable_record": ("POST", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/create"),
+    "update_bitable_record": ("PUT", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}"),
+    "delete_bitable_record": ("DELETE", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}"),
+    "batch_create_records": ("POST", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/create"),
+    "batch_update_records": ("PATCH", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/update"),
+    "batch_delete_records": ("DELETE", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/delete"),
+    "list_bitable_fields": ("GET", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/fields"),
+    
     # Legacy Bitable CRUD mappings (for backwards compatibility)
     "bitable.v1.appTableRecord.search": ("GET", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records"),
     "bitable.v1.appTableRecord.create": ("POST", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/create"),
@@ -41,8 +56,11 @@ TOOL_MAP = {
 def ok(id_, result):
     return {"jsonrpc": "2.0", "id": id_, "result": result}
 
-def err(id_, code, msg):
-    return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": msg}}
+def err(id_, code, msg, data=None):
+    error = {"code": code, "message": msg}
+    if data:
+        error["data"] = data
+    return {"jsonrpc": "2.0", "id": id_, "error": error}
 
 @router.post("/invoke")
 async def mcp_invoke(req: Request):
@@ -90,3 +108,42 @@ async def mcp_invoke(req: Request):
         return ok(mid, data)
 
     return err(mid, -32601, f"Method not found: {method}")
+
+@router.post("/invoke/proxy")
+async def mcp_proxy(req: Request):
+    """
+    Proxy MCP calls to a native Lark-tenant MCP server.
+    This allows for seamless integration with advanced MCP capabilities
+    while maintaining backward compatibility.
+    """
+    if not MCP_PROXY_ENABLED or not MCP_PROXY_URL:
+        return err("proxy_error", -32000, "MCP Proxy is not enabled or URL not configured")
+    
+    try:
+        # Get the original request body
+        body = await req.json()
+        
+        # Forward the request to the Lark-tenant MCP server
+        async with httpx.AsyncClient(timeout=30) as client:
+            headers = {"Content-Type": "application/json"}
+            
+            # Copy authorization headers if present
+            auth_header = req.headers.get("Authorization")
+            if auth_header:
+                headers["Authorization"] = auth_header
+                
+            response = await client.post(
+                MCP_PROXY_URL,
+                json=body,
+                headers=headers
+            )
+            
+            # Return the response from the Lark-tenant MCP server
+            return response.json()
+            
+    except json.JSONDecodeError:
+        return err("proxy_error", -32700, "Invalid JSON in request")
+    except httpx.RequestError as e:
+        return err("proxy_error", -32003, f"Error connecting to Lark-tenant MCP: {str(e)}")
+    except Exception as e:
+        return err("proxy_error", -32000, f"Unknown error: {str(e)}")

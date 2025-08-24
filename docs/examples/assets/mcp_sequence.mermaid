@@ -1,0 +1,32 @@
+sequenceDiagram
+    participant AI as AI Agent
+    participant MCP as MCP Bridge
+    participant Lark as Lark/Feishu
+
+    AI->>MCP: tools/list
+    MCP-->>AI: Available tools with schemas
+    
+    AI->>MCP: tools/call(send_lark_message)
+    MCP->>Lark: Send message API call
+    Lark-->>MCP: API response
+    MCP-->>AI: Result with message details
+    
+    AI->>MCP: tools/call(create_bitable_app)
+    MCP->>Lark: Create Bitable API call
+    Lark-->>MCP: API response with app token
+    MCP-->>AI: Result with app details
+    
+    AI->>MCP: tools/call(list_bitable_tables)
+    MCP->>Lark: List tables API call
+    Lark-->>MCP: API response with tables
+    MCP-->>AI: Result with table list
+    
+    AI->>MCP: tools/call(create_hypetask_session)
+    MCP->>Lark: Create session internal call
+    Lark-->>MCP: Session created
+    MCP-->>AI: Result with session token
+    
+    AI->>MCP: tools/call(log_conversation)
+    MCP->>Lark: Log message to conversation
+    Lark-->>MCP: Logging confirmation
+    MCP-->>AI: Result with success status
