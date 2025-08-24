@@ -649,9 +649,22 @@ app.state.limiter = limiter
 # MCP Bridge integration (zero risk, feature flag)
 import os
 MCP_BRIDGE_ENABLED = os.getenv("MCP_BRIDGE_ENABLED", "true").lower() == "true"
+logger.info(f"🔧 MCP_BRIDGE_ENABLED: {MCP_BRIDGE_ENABLED}")
+
 if MCP_BRIDGE_ENABLED:
-    from mcp_bridge import router as mcp_bridge
-    app.include_router(mcp_bridge, prefix="/mcp", tags=["mcp-bridge"])
+    try:
+        from mcp_bridge import router as mcp_bridge
+        # Include BEFORE existing /mcp routes to take precedence
+        app.include_router(mcp_bridge, prefix="/mcp", tags=["mcp-bridge"])
+        logger.info(f"✅ MCP Bridge router loaded with {len(mcp_bridge.routes)} routes")
+        # Log routes for debugging
+        for route in mcp_bridge.routes:
+            logger.info(f"   📍 {route.methods} /mcp{route.path}")
+    except Exception as e:
+        logger.error(f"❌ Failed to load MCP Bridge router: {e}")
+        MCP_BRIDGE_ENABLED = False
+else:
+    logger.warning("⚠️ MCP Bridge disabled - using basic tools only")
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Security headers middleware
