@@ -1,43 +1,76 @@
-# Lark-MCP-Telegram Server Documentation
+# 📚 Documentation
 
-## Overview
+Complete documentation for the Lark MCP Telegram Server project.
 
-Lark-MCP-Telegram Server is a powerful bridge service that provides:
+## 🚀 **Quick Start**
 
-1. **REST API** for direct integration with Lark/Feishu and Telegram services
-2. **MCP Bridge** (Model Context Protocol) for AI agent integration via JSON-RPC 2.0
+- **[Setup Guide](HOW_TO_TEST_AND_USE.md)** - Complete setup and testing instructions
+- **[Security Guide](../SECURITY.md)** - Security configuration and best practices
 
-This documentation covers both access methods, providing examples, use cases, and implementation details.
+## 🔧 **Technical Documentation**
 
-## Documentation Index
+### **Core Components**
+- **[MCP Bridge](mcp-bridge/README.md)** - Model Context Protocol server implementation
+- **[REST API](rest-api/README.md)** - HTTP endpoints and API reference
 
-### General
-- [Installation & Setup](./setup.md)
-- [Authentication & Security](./security.md)
-- [Configuration Options](./configuration.md)
+### **Integration Guides**
+- **[Examples Overview](examples/README.md)** - All integration examples
+- **[Python Client](examples/python-client.md)** - Python client for MCP calls
+- **[AI Agent Integration](examples/ai-agent-integrations.md)** - AI agent setup
+- **[N8N Integration](examples/n8n-integration.md)** - Workflow automation
+- **[Advanced Examples](examples/advanced-mcp-examples.md)** - Complex use cases
 
-### REST API
-- [API Reference](./rest-api/README.md)
-- [Lark API Endpoints](./rest-api/lark-endpoints.md)
-- [Bitable Operations](./rest-api/bitable-operations.md)
-- [Telegram Integration](./rest-api/telegram-endpoints.md)
-- [Webhook Management](./rest-api/webhook-endpoints.md)
+### **Language Support**
+- **[Thai Documentation](คู่มือการใช้งาน-ไทย.md)** - คู่มือการใช้งานภาษาไทย
 
-### MCP Bridge
-- [MCP Bridge Overview](./mcp-bridge/README.md)
-- [JSON-RPC 2.0 Protocol](./mcp-bridge/json-rpc.md)
-- [Tool Discovery](./mcp-bridge/tool-discovery.md)
-- [Tool Execution](./mcp-bridge/tool-execution.md)
-- [n8n AI Agent Integration](./mcp-bridge/n8n-integration.md)
-- [Claude & GPT Integration](./mcp-bridge/llm-integration.md)
+## 🛠️ **Development**
 
-### Example Use Cases
-- [Real-world Examples](./examples/README.md)
-- [Dual Access Method Comparison](./examples/dual-access.md)
+- **[Development Notes](development/)** - Internal development documentation
+  - `JWT_FIX_SUMMARY.md` - JWT token fixing notes
+  - `REAL_BITABLE_TEST_RESULTS.md` - Testing results
 
-## Getting Started
+## 📋 **Documentation Structure**
 
-To get started quickly, see the [Installation & Setup](./setup.md) guide, followed by the appropriate section for your integration needs:
+```
+docs/
+├── README.md                          # This file - documentation index
+├── HOW_TO_TEST_AND_USE.md            # Complete setup guide
+├── คู่มือการใช้งาน-ไทย.md               # Thai language guide
+├── mcp-bridge/                        # MCP server documentation
+│   ├── README.md                      # MCP bridge overview
+│   └── optimization.md               # Performance optimization
+├── rest-api/                         # HTTP API documentation
+│   └── README.md                     # REST API reference
+├── examples/                         # Integration examples
+│   ├── README.md                     # Examples overview
+│   ├── python-client.md              # Python client
+│   ├── ai-agent-integrations.md      # AI agent setup
+│   ├── n8n-integration.md           # N8N workflows
+│   ├── advanced-mcp-examples.md     # Advanced examples
+│   ├── dual-access.md               # Dual API access
+│   └── assets/                      # Diagrams and assets
+└── development/                      # Development documentation
+    ├── JWT_FIX_SUMMARY.md           # JWT fixes
+    └── REAL_BITABLE_TEST_RESULTS.md  # Test results
+```
 
-- For direct API access, see [REST API Reference](./rest-api/README.md)
-- For AI agent integration, see [MCP Bridge Overview](./mcp-bridge/README.md)
+## 🎯 **Getting Started**
+
+1. **New users**: Start with [Setup Guide](HOW_TO_TEST_AND_USE.md)
+2. **Developers**: Check [MCP Bridge](mcp-bridge/README.md) and [REST API](rest-api/README.md)
+3. **Integrators**: Browse [Examples](examples/README.md) for your use case
+4. **Security**: Review [Security Guide](../SECURITY.md)
+
+## 🤝 **Contributing to Documentation**
+
+When adding new documentation:
+
+1. **Place in appropriate directory**
+2. **Update this index**
+3. **Follow existing formatting**
+4. **Include practical examples**
+5. **Test all code examples**
+
+---
+
+**Need help?** Check the [Setup Guide](HOW_TO_TEST_AND_USE.md) or browse [Examples](examples/README.md)!
