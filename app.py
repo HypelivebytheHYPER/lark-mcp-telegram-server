@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Production FastAPI server with REAL Lark and Telegram API integrations
+Enhanced with optional security features for production use
 """
 import os
 import logging
@@ -19,6 +20,11 @@ from dotenv import load_dotenv
 import uuid
 import asyncio
 from datetime import timedelta
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
+# Import security configuration
+from security_config import security_manager, limiter
 
 # Load environment variables
 load_dotenv()
@@ -485,32 +491,62 @@ lark_client = LarkClient(LARK_APP_ID, LARK_APP_SECRET) if LARK_APP_ID and LARK_A
 telegram_client = TelegramClient(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 supabase_client = SupabaseClient()
 
-# Create FastAPI application
+# Create FastAPI application with enhanced security
 app = FastAPI(
     title="Lark-Telegram Bridge Server",
-    description="HTTP server for bridging Lark and Telegram messaging with real API integrations",
-    version="2.0.0"
+    description="Secure HTTP server for bridging Lark and Telegram messaging with real API integrations",
+    version="2.1.0"
 )
 
-# Add CORS middleware
+# Add rate limiting support
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Add security headers based on configuration
+    headers = security_manager.get_security_headers()
+    for key, value in headers.items():
+        response.headers[key] = value
+    
+    # Add HSTS only for HTTPS requests
+    if request.url.scheme == "https" and security_manager.security_enabled:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    
+    return response
+
+# Enhanced CORS configuration
+allowed_origins = ["*"]  # Default permissive for backward compatibility
+if os.getenv("ALLOWED_ORIGINS"):
+    allowed_origins = os.getenv("ALLOWED_ORIGINS").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],  # Restrict to needed methods
     allow_headers=["*"],
 )
 
 @app.get("/")
 async def root():
-    """Root endpoint with service information"""
+    """Root endpoint with service information and security status"""
     return {
         "service": "Lark-Telegram Bridge Server",
-        "version": "2.0.0", 
+        "version": "2.1.0", 
         "status": "running",
         "deployment": "render-production-with-real-apis",
         "environment": os.getenv("RENDER", "development"),
         "port": os.getenv("PORT", "8000"),
+        "security": {
+            "enabled": security_manager.security_enabled,
+            "rate_limit": security_manager.get_rate_limit(),
+            "content_validation": True,
+            "security_headers": True
+        },
         "integrations": {
             "lark": "✓ configured" if lark_client else "❌ missing credentials",
             "telegram": "✓ configured" if telegram_client else "❌ missing credentials"
@@ -784,8 +820,13 @@ async def test_lark_auth():
         return {"success": False, "error": str(e)}
 
 @app.post("/api/v1/lark/send")
-async def send_lark_endpoint(request: MessageRequest):
-    """Send message to Lark chat using real API"""
+@limiter.limit(security_manager.get_rate_limit())
+async def send_lark_endpoint(
+    request: Request,
+    message_request: MessageRequest,
+    user_role: Optional[str] = Depends(security_manager.verify_api_key)
+):
+    """Send message to Lark chat using real API with optional security"""
     
     if not lark_client:
         raise HTTPException(
@@ -793,15 +834,31 @@ async def send_lark_endpoint(request: MessageRequest):
             detail="Lark integration not configured - missing LARK_APP_ID or LARK_APP_SECRET"
         )
     
-    logger.info(f"Lark API request: chat_id={request.chat_id}, text_length={len(request.text)}")
+    # Validate and sanitize input
+    try:
+        validated_content = security_manager.validate_content(message_request.text)
+        validated_chat_id = security_manager.validate_chat_id(message_request.chat_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+    
+    # Log request with security info
+    client_ip = request.client.host if request.client else "unknown"
+    logger.info(
+        f"Lark API request from {client_ip}: "
+        f"chat_id={security_manager.hash_sensitive_data(validated_chat_id)}, "
+        f"text_length={len(validated_content)}, "
+        f"authenticated={user_role is not None}"
+    )
     
     try:
-        status_code, api_response = await lark_client.send_message(request.chat_id, request.text)
+        status_code, api_response = await lark_client.send_message(validated_chat_id, validated_content)
         
         if status_code == 200 and api_response.get("code") == 0:
             return MessageResponse(
                 success=True,
-                message=f"Message sent to Lark chat {request.chat_id}",
+                message=f"Message sent to Lark chat {validated_chat_id}",
                 details="Lark API call successful",
                 api_response=api_response
             )
@@ -1153,8 +1210,13 @@ async def list_departments(parent_department_id: str = None):
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @app.post("/api/v1/telegram/send") 
-async def send_telegram_endpoint(request: MessageRequest):
-    """Send message to Telegram chat using real API"""
+@limiter.limit(security_manager.get_rate_limit())
+async def send_telegram_endpoint(
+    request: Request,
+    message_request: MessageRequest,
+    user_role: Optional[str] = Depends(security_manager.verify_api_key)
+):
+    """Send message to Telegram chat using real API with optional security"""
     
     if not telegram_client:
         raise HTTPException(
@@ -1162,15 +1224,31 @@ async def send_telegram_endpoint(request: MessageRequest):
             detail="Telegram integration not configured - missing TELEGRAM_TOKEN"
         )
     
-    logger.info(f"Telegram API request: chat_id={request.chat_id}, text_length={len(request.text)}")
+    # Validate and sanitize input
+    try:
+        validated_content = security_manager.validate_content(message_request.text)
+        validated_chat_id = security_manager.validate_chat_id(message_request.chat_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+    
+    # Log request with security info
+    client_ip = request.client.host if request.client else "unknown"
+    logger.info(
+        f"Telegram API request from {client_ip}: "
+        f"chat_id={security_manager.hash_sensitive_data(validated_chat_id)}, "
+        f"text_length={len(validated_content)}, "
+        f"authenticated={user_role is not None}"
+    )
         
     try:
-        status_code, api_response = await telegram_client.send_message(request.chat_id, request.text)
+        status_code, api_response = await telegram_client.send_message(validated_chat_id, validated_content)
         
         if status_code == 200 and api_response.get("ok"):
             return MessageResponse(
                 success=True,
-                message=f"Message sent to Telegram chat {request.chat_id}",
+                message=f"Message sent to Telegram chat {validated_chat_id}",
                 details="Telegram API call successful",
                 api_response=api_response
             )
