@@ -93,6 +93,21 @@ class BitableTableUpdateRequest(BaseModel):
     table_id: str
     name: Optional[str] = None
 
+class BitableBatchCreateRequest(BaseModel):
+    app_token: str
+    table_id: str
+    records: list[dict]  # List of {"fields": {...}} objects
+
+class BitableBatchUpdateRequest(BaseModel):
+    app_token: str
+    table_id: str
+    records: list[dict]  # List of {"record_id": "...", "fields": {...}} objects
+
+class BitableBatchDeleteRequest(BaseModel):
+    app_token: str
+    table_id: str
+    record_ids: list[str]
+
 class WikiNodeRequest(BaseModel):
     token: str
     obj_type: str = "wiki"
@@ -471,6 +486,57 @@ class LarkClient:
             )
         
         return response.status_code, response.json()
+
+    async def batch_create_bitable_records(self, app_token: str, table_id: str, records: list[dict]):
+        """Batch create multiple records in Bitable table"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_create",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={"records": records},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
+
+    async def batch_update_bitable_records(self, app_token: str, table_id: str, records: list[dict]):
+        """Batch update multiple records in Bitable table"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_update",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={"records": records},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
+
+    async def batch_delete_bitable_records(self, app_token: str, table_id: str, record_ids: list[str]):
+        """Batch delete multiple records from Bitable table"""
+        token = await self.get_access_token()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"{self.base_url}/bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_delete",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={"records": record_ids},
+                params={"user_id_type": "open_id"}
+            )
+        
+        return response.status_code, response.json()
     
     async def get_wiki_node(self, token: str, obj_type: str = "wiki"):
         """Get Wiki node information"""
@@ -641,7 +707,10 @@ async def root():
                 "query_records": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records",
                 "create_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/create",
                 "update_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}",
-                "delete_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}"
+                "delete_record": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}",
+                "batch_create_records": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/create",
+                "batch_update_records": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/update",
+                "batch_delete_records": "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/delete"
             },
             "wiki": {
                 "get_node": "/api/v1/wiki/nodes/{token}"
@@ -1288,6 +1357,95 @@ async def delete_bitable_table(app_token: str, table_id: str):
             return MessageResponse(
                 success=False,
                 message="Failed to delete Bitable table",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.post("/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/create")
+async def batch_create_bitable_records(app_token: str, table_id: str, request: BitableBatchCreateRequest):
+    """Batch create multiple records in Bitable table"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.batch_create_bitable_records(
+            app_token, table_id, request.records
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            records_data = api_response.get('data', {})
+            record_count = len(records_data.get('records', []))
+            return MessageResponse(
+                success=True,
+                message=f"Batch created {record_count} records successfully in Bitable table",
+                details=f"Records created: {record_count}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to batch create Bitable records",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.patch("/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/update")
+async def batch_update_bitable_records(app_token: str, table_id: str, request: BitableBatchUpdateRequest):
+    """Batch update multiple records in Bitable table"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.batch_update_bitable_records(
+            app_token, table_id, request.records
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            records_data = api_response.get('data', {})
+            record_count = len(records_data.get('records', []))
+            return MessageResponse(
+                success=True,
+                message=f"Batch updated {record_count} records successfully in Bitable table",
+                details=f"Records updated: {record_count}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to batch update Bitable records",
+                details=f"API error: {api_response}",
+                api_response=api_response
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.delete("/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/delete")
+async def batch_delete_bitable_records(app_token: str, table_id: str, request: BitableBatchDeleteRequest):
+    """Batch delete multiple records from Bitable table"""
+    if not lark_client:
+        raise HTTPException(status_code=503, detail="Lark not configured")
+    
+    try:
+        status_code, api_response = await lark_client.batch_delete_bitable_records(
+            app_token, table_id, request.record_ids
+        )
+        
+        if status_code == 200 and api_response.get("code") == 0:
+            record_count = len(request.record_ids)
+            return MessageResponse(
+                success=True,
+                message=f"Batch deleted {record_count} records successfully from Bitable table",
+                details=f"Records deleted: {record_count}",
+                api_response=api_response
+            )
+        else:
+            return MessageResponse(
+                success=False,
+                message="Failed to batch delete Bitable records",
                 details=f"API error: {api_response}",
                 api_response=api_response
             )
