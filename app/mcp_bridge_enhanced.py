@@ -6,6 +6,7 @@ Using HTTP Streaming MCP Protocol and Official lark-oapi-python SDK patterns
 import json
 import logging
 import asyncio
+import os
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -376,8 +377,12 @@ class LarkBitableClient:
             json=payload
         )
 
-# Initialize enhanced Bitable client
-enhanced_bitable_client = LarkBitableClient()
+# Initialize enhanced Bitable client with environment variables
+enhanced_bitable_client = LarkBitableClient(
+    app_id=os.getenv("LARK_APP_ID"),
+    app_secret=os.getenv("LARK_APP_SECRET"),
+    tenant_access_token=os.getenv("LARK_TENANT_ACCESS_TOKEN")  # Optional: if you have a pre-generated token
+)
 
 async def execute_bitable_operation(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Execute Bitable operations using official SDK patterns"""
