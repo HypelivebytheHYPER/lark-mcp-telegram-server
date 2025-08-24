@@ -10,10 +10,25 @@ INTERNAL_BASE = os.getenv("MCP_BRIDGE_INTERNAL_BASE", "https://lark-mcp-telegram
 # MCP tool name -> (HTTP method, REST path)
 TOOL_MAP = {
     # Lark messaging
-    "im.v1.message.create": ("POST", "/api/v1/lark/send"),
-    "lark_tenant_im_v1_message_create": ("POST", "/api/v1/lark/send"),
     "send_lark_message": ("POST", "/api/v1/lark/send"),
-    # Bitable CRUD (adjust to match your actual endpoints)
+    
+    # Bitable operations
+    "create_bitable_app": ("POST", "/api/v1/bitable/apps/create"),
+    "list_bitable_tables": ("GET", "/api/v1/bitable/apps/{app_token}/tables"),
+    
+    # Contacts
+    "list_departments": ("GET", "/api/v1/contacts/departments"),
+    
+    # Chat operations  
+    "list_chats": ("GET", "/api/v1/lark/chats"),
+    
+    # HypeTask session management
+    "create_hypetask_session": ("POST", "/api/v1/hypetask/session/create"),
+    "get_hypetask_session": ("GET", "/api/v1/hypetask/session/{session_token}"),
+    "log_conversation": ("POST", "/api/v1/hypetask/conversation/log"),
+    "get_conversation_history": ("GET", "/api/v1/hypetask/conversation/history/{session_token}"),
+    
+    # Legacy Bitable CRUD mappings (for backwards compatibility)
     "bitable.v1.appTableRecord.search": ("GET", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records"),
     "bitable.v1.appTableRecord.create": ("POST", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/create"),
     "bitable.v1.appTableRecord.update": ("PUT", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/{record_id}"),
@@ -21,7 +36,6 @@ TOOL_MAP = {
     "bitable.v1.appTableRecord.batchCreate": ("POST", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/create"),
     "bitable.v1.appTableRecord.batchUpdate": ("PATCH", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/update"),
     "bitable.v1.appTableRecord.batchDelete": ("DELETE", "/api/v1/bitable/apps/{app_token}/tables/{table_id}/records/batch/delete"),
-    # Add more mappings as needed
 }
 
 def ok(id_, result):
