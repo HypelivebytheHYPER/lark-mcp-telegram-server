@@ -637,6 +637,13 @@ app = FastAPI(
 
 # Add rate limiting support
 app.state.limiter = limiter
+
+# MCP Bridge integration (zero risk, feature flag)
+import os
+MCP_BRIDGE_ENABLED = os.getenv("MCP_BRIDGE_ENABLED", "true").lower() == "true"
+if MCP_BRIDGE_ENABLED:
+    from mcp_bridge import router as mcp_bridge
+    app.include_router(mcp_bridge, prefix="/mcp", tags=["mcp-bridge"])
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Security headers middleware
