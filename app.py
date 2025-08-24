@@ -37,12 +37,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Environment variables
-LARK_APP_ID = os.getenv("LARK_APP_ID")
-LARK_APP_SECRET = os.getenv("LARK_APP_SECRET") 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+# Environment variables - strip whitespace to prevent encoding issues
+LARK_APP_ID = os.getenv("LARK_APP_ID", "").strip()
+LARK_APP_SECRET = os.getenv("LARK_APP_SECRET", "").strip()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
 PORT = int(os.getenv("PORT", "8000"))
 
 # Validate required environment variables
@@ -127,8 +127,25 @@ class SupabaseClient:
             self.enabled = False
             return
         self.enabled = True
-        self.base_url = SUPABASE_URL
-        self.api_key = SUPABASE_KEY
+        self.base_url = SUPABASE_URL.strip()
+        # Clean JWT token - remove newlines and whitespace that cause header encoding issues
+        self.api_key = SUPABASE_KEY.strip().replace('\n', '').replace(' ', '')
+        
+        # Validate JWT format (should have 3 parts separated by dots)
+        jwt_parts = self.api_key.split('.')
+        if len(jwt_parts) != 3:
+            logger.error(f"⚠️ Invalid JWT format: expected 3 parts, got {len(jwt_parts)}")
+            self.enabled = False
+        else:
+            logger.info(f"✅ Supabase JWT validated: {len(self.api_key)} chars, 3 parts")
+            
+    def _get_headers(self):
+        """Get standardized headers for Supabase requests"""
+        return {
+            "apikey": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
         
     async def create_session(self, user_id: str, platform: str, user_context: dict = None) -> dict:
         """Create new user session"""
@@ -139,14 +156,12 @@ class SupabaseClient:
         
         async with httpx.AsyncClient() as client:
             try:
+                headers = self._get_headers()
+                headers["Prefer"] = "return=representation"
+                
                 response = await client.post(
                     f"{self.base_url}/rest/v1/hypetask_user_sessions",
-                    headers={
-                        "apikey": self.api_key,
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                        "Prefer": "return=representation"
-                    },
+                    headers=headers,
                     json={
                         "user_id": user_id,
                         "session_token": session_token,
@@ -176,10 +191,7 @@ class SupabaseClient:
             try:
                 response = await client.get(
                     f"{self.base_url}/rest/v1/hypetask_user_sessions",
-                    headers={
-                        "apikey": self.api_key,
-                        "Authorization": f"Bearer {self.api_key}"
-                    },
+                    headers=self._get_headers(),
                     params={
                         "session_token": f"eq.{session_token}",
                         "is_active": "eq.true",
@@ -210,11 +222,7 @@ class SupabaseClient:
             try:
                 response = await client.post(
                     f"{self.base_url}/rest/v1/hypetask_conversations",
-                    headers={
-                        "apikey": self.api_key,
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    },
+                    headers=self._get_headers(),
                     json={
                         "session_id": session_id,
                         "user_id": user_id,
@@ -1747,10 +1755,7 @@ async def get_conversation_history(session_token: str, limit: int = 50):
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{supabase_client.base_url}/rest/v1/hypetask_conversations",
-                headers={
-                    "apikey": supabase_client.api_key,
-                    "Authorization": f"Bearer {supabase_client.api_key}"
-                },
+                headers=supabase_client._get_headers(),
                 params={
                     "session_id": f"eq.{session['id']}",
                     "order": "created_at.desc",
